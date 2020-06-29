@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 
 namespace IOMonad
 {
@@ -11,13 +12,15 @@ namespace IOMonad
 
         static IO<Unit> MainInternal(string[] args)
         {
-            return Console.WriteLine("What's your name?").SelectMany(_ =>
-                   Console.ReadLine().SelectMany(name =>
-                   Clock.GetLocalTime().SelectMany(now =>
-                   {
-                       var greeting = Greeter.Greet(now, name);
-                       return Console.WriteLine(greeting);
-                   })));
+            return
+                from _ in Console.WriteLine("What's your name?")
+                from name in Console.ReadLine()
+                from now in Clock.GetLocalTime()
+
+                let greeting = Greeter.Greet(now, name)
+
+                from res in Console.WriteLine(greeting)
+                select res;
         }
     }
 
@@ -65,8 +68,22 @@ namespace IOMonad
 
         public IO(Lazy<T> item) => this.item = item;
 
+        public IO<TResult> Select<TResult>(Func<T, TResult> selector)
+        {
+            return SelectMany(x => new IO<TResult>(new Lazy<TResult>(selector(x))));
+        }
+
         public IO<TResult> SelectMany<TResult>(Func<T, IO<TResult>> selector) =>
             selector(item.Value);
+
+        public IO<TResult> SelectMany<U, TResult>(
+            Func<T, IO<U>> k,
+            Func<T, U, TResult> s)
+        {
+            return SelectMany(x =>
+                k(x)
+                .SelectMany(y => new IO<TResult>(new Lazy<TResult>(s(x, y)))));
+        }
     }
 
     public static class Console
